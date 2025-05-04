@@ -102,7 +102,16 @@ def set_alerts(update: Update, context: CallbackContext):
 
 def price(update: Update, context: CallbackContext):
     price = fetch_price()
-    update.message.reply_text(f"📊 PEPU Price: ${price:.6f}" if price else "❌ Could not fetch price.")
+    try:
+        holdings = float(os.getenv("TOKEN_HOLDINGS", 0))
+        total_value = holdings * price
+        update.message.reply_text(
+            f"📈 PEPU Price: ${price:.6f}\n"
+            f"📦 Holdings: {int(holdings):,} tokens\n"
+            f"💵 Total Value: ${total_value:,.2f}"
+        )
+    except:
+        update.message.reply_text(f"📈 PEPU Price: ${price:.6f}" if price else "❌ Could not fetch price.")
 
 # === REGISTER HANDLERS ===
 dispatcher.add_handler(CommandHandler("start", start))
@@ -124,18 +133,4 @@ def webhook():
 def index():
     return "PEPU Bot is live."
 
-@app.route("/ping", methods=["GET"])
-def ping():
-    return "pong", 200
-
-@app.before_first_request
-def setup_webhook():
-    load_settings()
-    webhook_url = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
-    bot.delete_webhook()
-    bot.set_webhook(url=webhook_url)
-
-# === START FLASK SERVER ===
-if __name__ == "__main__":
-    load_settings()
-    app.run(host="0.0.0.0", port=PORT)
+@app.route("/pin
