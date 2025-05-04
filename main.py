@@ -10,7 +10,7 @@ import traceback
 import os
 
 # === CONFIG ===
-TELEGRAM_BOT_TOKEN = "7308303366:AAGGHPyPMI1gKvweD_t6LAOBi-erahvCVD8"
+TELEGRAM_BOT_TOKEN = "7308303366:AAHs6_eHbvFPZ640pZxfiwx3ASvqkdw8RnA"
 DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/pairs/ethereum/0x3ebec0a1b4055c8d1180fce64db2a8c068170880"
 user_id = 7669555692  # Your Telegram ID
 token_holdings = 25473576
