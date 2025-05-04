@@ -9,11 +9,18 @@ from threading import Thread
 import traceback
 import os
 
-# === CONFIG ===
-TELEGRAM_BOT_TOKEN = "7308303366:AAHs6_eHbvFPZ640pZxfiwx3ASvqkdw8RnA"
-DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/pairs/ethereum/0x3ebec0a1b4055c8d1180fce64db2a8c068170880"
-user_id = 7669555692  # Your Telegram ID
-token_holdings = 25473576
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+DEXSCREENER_URL = os.getenv("DEXSCREENER_URL")
+user_id = int(os.getenv("USER_ID"))
+token_holdings = int(os.getenv("TOKEN_HOLDINGS"))
+
+
 
 # === STATE ===
 price_floor = None
