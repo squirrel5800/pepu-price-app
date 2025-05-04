@@ -12,7 +12,7 @@ import traceback
 TELEGRAM_BOT_TOKEN = "7308303366:AAEbl_qKx1UqCZU1OpXwX--IHuFtDJ0liF8"
 DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/pairs/ethereum/0x3ebec0a1b4055c8d1180fce64db2a8c068170880"
 user_id = 7669555692  # Your Telegram ID
-token_holdings = 24096926
+token_holdings = 25473576
 
 # === STATE ===
 price_floor = None
