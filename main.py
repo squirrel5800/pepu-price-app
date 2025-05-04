@@ -35,27 +35,4 @@ def start(update: Update, context: CallbackContext):
 
 def signal(update: Update, context: CallbackContext):
     price = fetch_price()
-    update.message.reply_text(f"📈 Current PEPU Price: ${price:.6f}" if price else "❌ Could not fetch price.")
-
-def fetch_price():
-    try:
-        res = requests.get(DEXSCREENER_URL).json()
-        return float(res['pair']['priceUsd'])
-    except:
-        return None
-
-def set_floor(update: Update, context: CallbackContext):
-    global price_floor
-    try:
-        price_floor = float(context.args[0])
-        update.message.reply_text(f"📉 Price floor set to ${price_floor}")
-    except:
-        update.message.reply_text("❌ Usage: /setfloor 0.0012")
-
-def set_sell_point(update: Update, context: CallbackContext):
-    global sell_point
-    try:
-        sell_point = float(context.args[0])
-        update.message.reply_text(f"💰 Sell point set to ${sell_point}")
-    except:
-        update.message.reply_text("❌ Usage: /setsellpoint 0.00_
+    update.messag
