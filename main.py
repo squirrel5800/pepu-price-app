@@ -1,40 +1,38 @@
-
-import requests
-import time
-import threading
+import os
 import logging
-from telegram.ext import Updater, CommandHandler, CallbackContext
-from flask import Flask
-from threading import Thread
-import traceback
-import os
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import CommandHandler, Dispatcher, CallbackContext
+import requests
 
-
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-DEXSCREENER_URL = os.getenv("DEXSCREENER_URL")
-user_id = int(os.getenv("USER_ID"))
-token_holdings = int(os.getenv("TOKEN_HOLDINGS"))
-
-
+# === CONFIG ===
+TOKEN = "YOUR_BOT_TOKEN"
+BOT_USERNAME = "your_bot_username"  # e.g., pepubot
+PORT = int(os.environ.get('PORT', 10000))
+DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/pairs/ethereum/0x3ebec0a1b4055c8d1180fce64db2a8c068170880"
 
 # === STATE ===
 price_floor = None
 sell_point = None
 alert_percent = None
 interval_minutes = None
-floor_check_seconds = 30
-last_price = None
-chat_id = None
-bot_running = False
-regular_update_timer = None
-setup_step = 0
 
-# === PRICE FETCH ===
+# === LOGGING ===
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# === FLASK & BOT SETUP ===
+app = Flask(__name__)
+bot = Bot(token=TOKEN)
+dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
+
+# === HANDLERS ===
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("👋 Hello from PEPU Bot! I'm ready to track your token alerts.")
+
+def signal(update: Update, context: CallbackContext):
+    price = fetch_price()
+    update.message.reply_text(f"📈 Current PEPU Price: ${price:.6f}" if price else "❌ Could not fetch price.")
+
 def fetch_price():
     try:
         res = requests.get(DEXSCREENER_URL).json()
@@ -42,214 +40,22 @@ def fetch_price():
     except:
         return None
 
-# === ALERTS LOOP ===
-def floor_alert_loop():
-    global last_price
-    while bot_running:
-        price = fetch_price()
-        if not price or not chat_id:
-            time.sleep(floor_check_seconds)
-            continue
-
-        if sell_point and price > sell_point:
-            msg = (
-                "🎉 *PEPU SELL POINT REACHED!* 🎉\n"
-                f"✅ ABOVE TARGET: ${sell_point:.6f}\n"
-                f"📈 CURRENT: ${price:.6f}\n"
-                "🪙 Consider locking in profits 🪙"
-            )
-            for _ in range(5):
-                try:
-                    updater.bot.send_message(chat_id=chat_id, text=msg, parse_mode='Markdown')
-                except Exception as e:
-                    print("Error sending sell alert:", e)
-                time.sleep(3)
-
-        if price_floor and price < price_floor:
-            msg = (
-                "🚨 *PEPU FLOOR BREACHED!* 🚨\n"
-                f"❌ BELOW FLOOR: ${price_floor:.6f}\n"
-                f"📉 CURRENT: ${price:.6f}\n"
-                "⚠️ Watch closely or consider action"
-            )
-            for _ in range(5):
-                try:
-                    updater.bot.send_message(chat_id=chat_id, text=msg, parse_mode='Markdown')
-                except Exception as e:
-                    print("Error sending floor alert:", e)
-                time.sleep(3)
-
-        time.sleep(floor_check_seconds)
-
-# === REGULAR PRICE UPDATE ===
-def send_regular_update():
-    global last_price, regular_update_timer
-    print("🌀 Running send_regular_update...")
-
-    if not chat_id:
-        print("⚠️ No chat_id set. Skipping update.")
-        return
-
-    price = fetch_price()
-    if price is None:
-        print("⚠️ Could not fetch price.")
-        return
-
-    total_value = price * token_holdings
-    message = (
-        f"📈 PEPU Price: ${price:.6f}\n"
-        f"📦 Holdings: {token_holdings:,} tokens\n"
-        f"💵 Total Value: ${total_value:,.2f}"
-    )
-
-    if last_price:
-        change = ((price - last_price) / last_price) * 100
-        if alert_percent and abs(change) >= alert_percent:
-            message += f"\n🚨 Price moved {change:.2f}% from ${last_price:.6f}"
-
-    last_price = price
-
-    try:
-        updater.bot.send_message(chat_id=chat_id, text=message)
-        print("✅ Sent regular update.")
-    except Exception as e:
-        print("❌ Error sending update:", e)
-
-    regular_update_timer = threading.Timer(interval_minutes * 60, send_regular_update)
-    regular_update_timer.start()
-
-# === COMMANDS ===
-def start(update, context):
-    global chat_id, setup_step, bot_running
-    if update.effective_user.id != user_id:
-        update.message.reply_text("❌ Unauthorized.")
-        return
-    chat_id = update.effective_chat.id
-    update.message.reply_text("👋 Hi Mark! Let's set up your PEPU bot.\nStep 1️⃣: Set your floor price using /setfloor <price>")
-    setup_step = 1
-    if not bot_running:
-        bot_running = True
-        threading.Thread(target=floor_alert_loop, daemon=True).start()
-
-def set_floor(update, context):
-    global price_floor, setup_step
-    if update.effective_user.id != user_id:
-        update.message.reply_text("❌ Unauthorized.")
-        return
+def set_floor(update: Update, context: CallbackContext):
+    global price_floor
     try:
         price_floor = float(context.args[0])
-        update.message.reply_text(f"🛑 Floor price set to ${price_floor:.6f}")
-        if setup_step == 1:
-            setup_step = 2
-            update.message.reply_text("Step 2️⃣: Set your sell point using /setsellpoint <price>")
+        update.message.reply_text(f"📉 Price floor set to ${price_floor}")
     except:
-        update.message.reply_text("⚠️ Usage: /setfloor <price>")
+        update.message.reply_text("❌ Usage: /setfloor 0.0012")
 
-def set_sell_point(update, context):
-    global sell_point, setup_step
-    if update.effective_user.id != user_id:
-        update.message.reply_text("❌ Unauthorized.")
-        return
+def set_sell_point(update: Update, context: CallbackContext):
+    global sell_point
     try:
         sell_point = float(context.args[0])
-        update.message.reply_text(f"🚀 Sell point set to ${sell_point:.6f}")
-        if setup_step == 2:
-            setup_step = 3
-            update.message.reply_text("Step 3️⃣: Set alert threshold using /setalert <percent>")
+        update.message.reply_text(f"💰 Sell point set to ${sell_point}")
     except:
-        update.message.reply_text("⚠️ Usage: /setsellpoint <price>")
+        update.message.reply_text("❌ Usage: /setsellpoint 0.0020")
 
-def set_alert(update, context):
-    global alert_percent, setup_step
-    if update.effective_user.id != user_id:
-        update.message.reply_text("❌ Unauthorized.")
-        return
-    try:
-        alert_percent = float(context.args[0])
-        update.message.reply_text(f"📉 Alert % set to {alert_percent:.1f}%")
-        if setup_step == 3:
-            setup_step = 4
-            update.message.reply_text("Step 4️⃣: Set interval using /setinterval <minutes>")
-    except:
-        update.message.reply_text("⚠️ Usage: /setalert <percent>")
-
-def set_interval(update, context):
-    global interval_minutes, setup_step
-    if update.effective_user.id != user_id:
-        update.message.reply_text("❌ Unauthorized.")
-        return
-    try:
-        interval_minutes = int(context.args[0])
-        update.message.reply_text(f"⏱️ Interval set to {interval_minutes} minutes.")
-        if setup_step == 4:
-            setup_step = 5
-            update.message.reply_text("✅ Setup complete! Bot is now monitoring prices.")
-            send_regular_update()
-    except:
-        update.message.reply_text("⚠️ Usage: /setinterval <minutes>")
-
-def price(update, context):
-    if update.effective_user.id != user_id:
-        update.message.reply_text("❌ Unauthorized.")
-        return
-    price = fetch_price()
-    if price:
-        total_value = price * token_holdings
-        msg = (
-            f"💰 Current PEPU Price: ${price:.6f}\n"
-            f"📦 Holdings: {token_holdings:,} tokens\n"
-            f"💵 Total Value: ${total_value:,.2f}"
-        )
-        update.message.reply_text(msg)
-    else:
-        update.message.reply_text("❌ Could not fetch price.")
-
-def help_command(update, context):
-    update.message.reply_text(
-        "🛠️ Commands:\n"
-        "/start – Begin setup\n"
-        "/setfloor <price>\n"
-        "/setsellpoint <price>\n"
-        "/setalert <percent>\n"
-        "/setinterval <minutes>\n"
-        "/price – Show current PEPU price"
-    )
-
-# === TELEGRAM INIT ===
-logging.basicConfig(level=logging.INFO)
-updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
-
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("setfloor", set_floor))
-dispatcher.add_handler(CommandHandler("setsellpoint", set_sell_point))
-dispatcher.add_handler(CommandHandler("setalert", set_alert))
-dispatcher.add_handler(CommandHandler("setinterval", set_interval))
-dispatcher.add_handler(CommandHandler("price", price))
-dispatcher.add_handler(CommandHandler("help", help_command))
-
-def error_handler(update, context: CallbackContext):
-    print("❌ Telegram error:", context.error)
-    traceback.print_exception(None, context.error, context.error.__traceback__)
-
-dispatcher.add_error_handler(error_handler)
-
-# === FLASK KEEP-ALIVE ===
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "✅ PEPU Bot is alive and watching prices!"
-
-def run_web():
-    PORT = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=PORT)
-
-def run_bot():
-    updater.start_polling()
-    updater.idle()
-
-# === START BOTH ===
-if __name__ == "__main__":
-    Thread(target=run_web).start()
-    Thread(target=run_bot).start()
+def set_interval(update: Update, context: CallbackContext):
+    global interval_minutes
+    tr
