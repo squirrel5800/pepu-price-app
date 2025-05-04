@@ -49,7 +49,7 @@ app = Flask(__name__)
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot, None, workers=4, use_context=True)
 
-# === HANDLERS ===
+# === COMMAND HANDLERS ===
 def start(update: Update, context: CallbackContext):
     update.message.reply_text("👋 Hello from PEPU Bot! Previous settings restored.")
 
@@ -101,17 +101,21 @@ def set_alerts(update: Update, context: CallbackContext):
         update.message.reply_text("❌ Usage: /setalerts 7")
 
 def price(update: Update, context: CallbackContext):
-    price = fetch_price()
     try:
+        price = fetch_price()
+        if not price:
+            raise Exception("Price fetch failed")
+
         holdings = float(os.getenv("TOKEN_HOLDINGS", 0))
         total_value = holdings * price
+
         update.message.reply_text(
             f"📈 PEPU Price: ${price:.6f}\n"
             f"📦 Holdings: {int(holdings):,} tokens\n"
             f"💵 Total Value: ${total_value:,.2f}"
         )
-    except:
-        update.message.reply_text(f"📈 PEPU Price: ${price:.6f}" if price else "❌ Could not fetch price.")
+    except Exception as e:
+        update.message.reply_text("❌ Could not fetch price or holdings.")
 
 # === REGISTER HANDLERS ===
 dispatcher.add_handler(CommandHandler("start", start))
@@ -122,7 +126,7 @@ dispatcher.add_handler(CommandHandler("setinterval", set_interval))
 dispatcher.add_handler(CommandHandler("setalerts", set_alerts))
 dispatcher.add_handler(CommandHandler("price", price))
 
-# === WEBHOOK ENDPOINTS ===
+# === WEBHOOK ROUTES ===
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
@@ -133,5 +137,18 @@ def webhook():
 def index():
     return "PEPU Bot is live."
 
-@app.route("/ping")
+@app.route("/ping", methods=["GET"])
+def ping():
+    return "pong", 200
 
+@app.before_first_request
+def setup_webhook():
+    load_settings()
+    webhook_url = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
+    bot.delete_webhook()
+    bot.set_webhook(url=webhook_url)
+
+# === RUN SERVER ===
+if __name__ == "__main__":
+    load_settings()
+    app.run(host="0.0.0.0", port=PORT)
