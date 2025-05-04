@@ -9,10 +9,11 @@ from threading import Thread
 import traceback
 
 # === CONFIG ===
-TELEGRAM_BOT_TOKEN = "7308303366:AAEbl_qKx1UqCZU1OpXwX--IHuFtDJ0liF8"
+TELEGRAM_BOT_TOKEN = "7308303366:AAH7F9WYzAgO59xM5YrbqlwlD--Zqj8uf3I"
 DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/pairs/ethereum/0x3ebec0a1b4055c8d1180fce64db2a8c068170880"
 user_id = 7669555692  # Your Telegram ID
 token_holdings = 25473576
+
 
 # === STATE ===
 price_floor = None
