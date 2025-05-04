@@ -102,4 +102,43 @@ def price_watcher():
             if alert_percent and last_checked_price:
                 change = abs((price - last_checked_price) / last_checked_price) * 100
                 if change >= alert_percent:
-                    icon = "📈" if price > last_checked_price else "�
+                    icon = "📈" if price > last_checked_price else "📉"
+                    bot.send_message(chat_id=USER_ID, text=f"{icon} Price changed {change:.2f}% to ${price:.6f}")
+            last_checked_price = price
+        except Exception as e:
+            print("Watcher error:", e)
+
+# === THREAD START ===
+threading.Thread(target=price_watcher, daemon=True).start()
+
+# === ROUTES ===
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "ok"
+
+@app.route("/", methods=["GET"])
+def root():
+    return "PEPU Bot is live."
+
+@app.route("/ping", methods=["GET"])
+def ping():
+    return "pong", 200
+
+@app.before_first_request
+def setup_webhook():
+    bot.delete_webhook()
+    bot.set_webhook(url=f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}")
+
+# === COMMAND HANDLERS ===
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("price", price))
+dispatcher.add_handler(CommandHandler("setfloor", set_floor))
+dispatcher.add_handler(CommandHandler("setsellpoint", set_sell_point))
+dispatcher.add_handler(CommandHandler("setinterval", set_interval))
+dispatcher.add_handler(CommandHandler("setalerts", set_alerts))
+
+# === RUN APP ===
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
