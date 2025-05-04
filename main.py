@@ -133,4 +133,5 @@ def webhook():
 def index():
     return "PEPU Bot is live."
 
-@app.route("/pin
+@app.route("/ping")
+
