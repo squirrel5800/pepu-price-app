@@ -1,3 +1,4 @@
+
 import requests
 import time
 import threading
@@ -6,6 +7,7 @@ from telegram.ext import Updater, CommandHandler, CallbackContext
 from flask import Flask
 from threading import Thread
 import traceback
+import os
 
 # === CONFIG ===
 TELEGRAM_BOT_TOKEN = "7308303366:AAH7F9WYzAgO59xM5YrbqlwlD--Zqj8uf3I"
@@ -134,4 +136,113 @@ def set_floor(update, context):
             setup_step = 2
             update.message.reply_text("Step 2️⃣: Set your sell point using /setsellpoint <price>")
     except:
-        update.message.re
+        update.message.reply_text("⚠️ Usage: /setfloor <price>")
+
+def set_sell_point(update, context):
+    global sell_point, setup_step
+    if update.effective_user.id != user_id:
+        update.message.reply_text("❌ Unauthorized.")
+        return
+    try:
+        sell_point = float(context.args[0])
+        update.message.reply_text(f"🚀 Sell point set to ${sell_point:.6f}")
+        if setup_step == 2:
+            setup_step = 3
+            update.message.reply_text("Step 3️⃣: Set alert threshold using /setalert <percent>")
+    except:
+        update.message.reply_text("⚠️ Usage: /setsellpoint <price>")
+
+def set_alert(update, context):
+    global alert_percent, setup_step
+    if update.effective_user.id != user_id:
+        update.message.reply_text("❌ Unauthorized.")
+        return
+    try:
+        alert_percent = float(context.args[0])
+        update.message.reply_text(f"📉 Alert % set to {alert_percent:.1f}%")
+        if setup_step == 3:
+            setup_step = 4
+            update.message.reply_text("Step 4️⃣: Set interval using /setinterval <minutes>")
+    except:
+        update.message.reply_text("⚠️ Usage: /setalert <percent>")
+
+def set_interval(update, context):
+    global interval_minutes, setup_step
+    if update.effective_user.id != user_id:
+        update.message.reply_text("❌ Unauthorized.")
+        return
+    try:
+        interval_minutes = int(context.args[0])
+        update.message.reply_text(f"⏱️ Interval set to {interval_minutes} minutes.")
+        if setup_step == 4:
+            setup_step = 5
+            update.message.reply_text("✅ Setup complete! Bot is now monitoring prices.")
+            send_regular_update()
+    except:
+        update.message.reply_text("⚠️ Usage: /setinterval <minutes>")
+
+def price(update, context):
+    if update.effective_user.id != user_id:
+        update.message.reply_text("❌ Unauthorized.")
+        return
+    price = fetch_price()
+    if price:
+        total_value = price * token_holdings
+        msg = (
+            f"💰 Current PEPU Price: ${price:.6f}\n"
+            f"📦 Holdings: {token_holdings:,} tokens\n"
+            f"💵 Total Value: ${total_value:,.2f}"
+        )
+        update.message.reply_text(msg)
+    else:
+        update.message.reply_text("❌ Could not fetch price.")
+
+def help_command(update, context):
+    update.message.reply_text(
+        "🛠️ Commands:\n"
+        "/start – Begin setup\n"
+        "/setfloor <price>\n"
+        "/setsellpoint <price>\n"
+        "/setalert <percent>\n"
+        "/setinterval <minutes>\n"
+        "/price – Show current PEPU price"
+    )
+
+# === TELEGRAM INIT ===
+logging.basicConfig(level=logging.INFO)
+updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
+
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("setfloor", set_floor))
+dispatcher.add_handler(CommandHandler("setsellpoint", set_sell_point))
+dispatcher.add_handler(CommandHandler("setalert", set_alert))
+dispatcher.add_handler(CommandHandler("setinterval", set_interval))
+dispatcher.add_handler(CommandHandler("price", price))
+dispatcher.add_handler(CommandHandler("help", help_command))
+
+def error_handler(update, context: CallbackContext):
+    print("❌ Telegram error:", context.error)
+    traceback.print_exception(None, context.error, context.error.__traceback__)
+
+dispatcher.add_error_handler(error_handler)
+
+# === FLASK KEEP-ALIVE ===
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ PEPU Bot is alive and watching prices!"
+
+def run_web():
+    PORT = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=PORT)
+
+def run_bot():
+    updater.start_polling()
+    updater.idle()
+
+# === START BOTH ===
+if __name__ == "__main__":
+    Thread(target=run_web).start()
+    Thread(target=run_bot).start()
